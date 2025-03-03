@@ -148,10 +148,10 @@
                     <div>Count Down</div>
                     <div>Current Call</div>
                     <div class="call-number">
-                        {% if game_status == 'waiting' %}
-                            Waiting for players ({{ active_players }}/1)
-                        {% else %}
+                        {% if game_status == 'active' %}
                             {{ current_number|default('None') }}
+                        {% else %}
+                            Started
                         {% endif %}
                     </div>
                 </div>
@@ -194,7 +194,7 @@
                 if (data.error) {
                     console.error(data.error);
                 } else {
-                    location.reload();
+                    refreshGame();
                 }
             });
         }
@@ -215,7 +215,7 @@
                     alert(data.message);
                     location.reload();
                 } else {
-                    location.reload();
+                    refreshGame();
                 }
             });
         }
@@ -228,24 +228,11 @@
             window.location.href = '/';
         }
 
-        // Auto-start game if enough players have joined
-        {% if game_status == 'waiting' and active_players >= 2 %}
-        fetch(`/game/{{ game_id }}/start`, {
-            method: 'POST'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.error) {
-                location.reload();
-            }
-        });
-        {% endif %}
-
-        // Auto-refresh every 5 seconds if game is active
+        // Auto-refresh every 3 seconds if game is active
         {% if game_status == 'active' %}
         setInterval(() => {
-            location.reload();
-        }, 5000);
+            refreshGame();
+        }, 3000);
         {% endif %}
     </script>
 </body>

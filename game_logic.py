@@ -15,6 +15,7 @@ class BingoGame:
         self.finished_at = None
         self.min_players = 1  # Temporarily set to 1 for testing
         self.max_players = 100  # Maximum players allowed
+        self.last_call_time = None
 
     def generate_board(self) -> List[int]:
         """Generate a 5x5 BINGO board with proper number ranges."""
@@ -54,10 +55,12 @@ class BingoGame:
 
         available = [n for n in range(1, 76) if n not in self.called_numbers]
         if not available:
+            self.status = "finished"  # End game if all numbers are called
             return None
 
         number = random.choice(available)
         self.called_numbers.append(number)
+        self.last_call_time = datetime.utcnow()
         return self.format_number(number)
 
     @staticmethod
@@ -84,6 +87,7 @@ class BingoGame:
         if number in player['board'] and number in self.called_numbers:
             if number not in player['marked']:
                 player['marked'].append(number)
+                player['marked'].sort()  # Keep marked numbers sorted
             return True
         return False
 
