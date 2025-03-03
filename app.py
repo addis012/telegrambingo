@@ -129,7 +129,7 @@ def play_game(game_id):
     player = game.players[user_id]
 
     # Auto-start game if enough players have joined
-    if game.status == "waiting" and len(game.players) >= 2:
+    if game.status == "waiting" and len(game.players) >= game.min_players:
         game.start_game()
         if game.status == "active":
             game.call_number()  # Call first number automatically
@@ -141,6 +141,7 @@ def play_game(game_id):
 
     return render_template('game.html',
                          game_id=game_id,
+                         game=game,
                          board=player['board'],
                          marked=player['marked'],
                          called_numbers=game.called_numbers,
