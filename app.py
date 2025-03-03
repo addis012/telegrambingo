@@ -7,7 +7,7 @@ app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
 
 class BingoGame:
     def __init__(self):
-        self.current_number = None
+        self.current_number = "B-11"  
         self.called_numbers = []
         self.status = "waiting"
 
@@ -39,9 +39,18 @@ game = BingoGame()
 @app.route('/')
 def index():
     if 'board' not in session:
-        # Generate a random board for the player
-        numbers = random.sample(range(1, 76), 25)
-        session['board'] = numbers
+        # Generate a random board for the player (5x5 grid)
+        b_numbers = random.sample(range(1, 16), 5)
+        i_numbers = random.sample(range(16, 31), 5)
+        n_numbers = random.sample(range(31, 46), 5)
+        g_numbers = random.sample(range(46, 61), 5)
+        o_numbers = random.sample(range(61, 76), 5)
+
+        board = []
+        for i in range(5):
+            board.extend([b_numbers[i], i_numbers[i], n_numbers[i], g_numbers[i], o_numbers[i]])
+
+        session['board'] = board
         session['marked'] = []
 
     return render_template('game.html', 
