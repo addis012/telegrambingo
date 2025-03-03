@@ -13,7 +13,7 @@ class BingoGame:
         self.winner_id = None
         self.created_at = datetime.utcnow()
         self.finished_at = None
-        self.min_players = 5  # Minimum players to start game
+        self.min_players = 1  # Temporarily set to 1 for testing
         self.max_players = 100  # Maximum players allowed
 
     def generate_board(self) -> List[int]:
