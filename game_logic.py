@@ -53,11 +53,13 @@ class BingoGame:
         if self.status != "active":
             return None
 
+        # Get list of uncalled numbers
         available = [n for n in range(1, 76) if n not in self.called_numbers]
         if not available:
             self.status = "finished"  # End game if all numbers are called
             return None
 
+        # Call a new number
         number = random.choice(available)
         self.called_numbers.append(number)
         self.last_call_time = datetime.utcnow()
@@ -124,7 +126,7 @@ class BingoGame:
             return False
         self.status = "active"
         # Call first number automatically when game starts
-        self.call_number()
+        self.call_number() # Added this line back to call a number at the start.
         return True
 
     def end_game(self, winner_id: int):

@@ -167,6 +167,7 @@
                     <div class="player-board">
                         {% for number in board %}
                             <div class="number-cell {% if number in marked %}active{% endif %}" 
+                                data-number="{{ number }}"
                                 onclick="markNumber({{ number }})">
                                 {{ number }}
                             </div>
@@ -193,9 +194,24 @@
             .then(data => {
                 if (data.error) {
                     console.error(data.error);
-                } else {
-                    refreshGame();
+                } else if (data.number) {
+                    // Update called number display
+                    document.querySelector('.call-number').textContent = data.number;
+
+                    // Update the numbers board
+                    if (data.called_numbers) {
+                        const allCells = document.querySelectorAll('.numbers-board .number-cell');
+                        allCells.forEach(cell => {
+                            const num = parseInt(cell.textContent);
+                            if (data.called_numbers.includes(num)) {
+                                cell.classList.add('active');
+                            }
+                        });
+                    }
                 }
+            })
+            .catch(error => {
+                console.error('Error:', error);
             });
         }
 
@@ -214,8 +230,12 @@
                 } else if (data.winner) {
                     alert(data.message);
                     location.reload();
-                } else {
-                    refreshGame();
+                } else if (data.marked) {
+                    // Update marked numbers without page reload
+                    data.marked.forEach(num => {
+                        const cell = document.querySelector(`.player-board .number-cell[data-number="${num}"]`);
+                        if (cell) cell.classList.add('active');
+                    });
                 }
             });
         }
@@ -228,11 +248,9 @@
             window.location.href = '/';
         }
 
-        // Auto-refresh every 3 seconds if game is active
+        // Auto-refresh every 1 second if game is active
         {% if game_status == 'active' %}
-        setInterval(() => {
-            refreshGame();
-        }, 3000);
+        setInterval(refreshGame, 1000);
         {% endif %}
     </script>
 </body>

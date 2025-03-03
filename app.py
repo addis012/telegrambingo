@@ -158,17 +158,19 @@ def call_number(game_id):
     game = active_games[game_id]
 
     # Auto-start game if enough players
-    if game.status == "waiting" and len(game.players) >= 2:
+    if game.status == "waiting" and len(game.players) >= game.min_players:
         game.start_game()
 
     if game.status != "active":
         return jsonify({'error': 'Game not active'}), 400
 
     number = game.call_number()
-    return jsonify({
-        'number': number,
-        'called_numbers': game.called_numbers
-    })
+    if number:
+        return jsonify({
+            'number': number,
+            'called_numbers': game.called_numbers
+        })
+    return jsonify({'error': 'No more numbers to call'}), 400
 
 @app.route('/game/<int:game_id>/mark', methods=['POST'])
 def mark_number(game_id):
