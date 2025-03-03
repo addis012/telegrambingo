@@ -9,32 +9,28 @@ class User(db.Model):
     balance = db.Column(db.Float, default=0.0)
     games_played = db.Column(db.Integer, default=0)
     games_won = db.Column(db.Integer, default=0)
-    referrer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relationships
-    referrals = db.relationship('User', backref=db.backref('referrer', remote_side=[id]))
-    games_participated = db.relationship('GameParticipant', backref='user', lazy=True)
-    won_games = db.relationship('Game', backref='winner', lazy=True)
-    deposits = db.relationship('Deposit', backref='user', lazy=True)
 
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     status = db.Column(db.String(20), default='waiting')  # waiting, active, finished
     entry_price = db.Column(db.Float, nullable=False)
     pool = db.Column(db.Float, default=0.0)
+    called_numbers = db.Column(db.String, default='')  # Store as comma-separated numbers
     winner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     finished_at = db.Column(db.DateTime)
 
     # Relationships
     participants = db.relationship('GameParticipant', backref='game', lazy=True)
+    winner = db.relationship('User', backref='won_games', lazy=True)
 
 class GameParticipant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     cartela_number = db.Column(db.Integer, nullable=False)
+    marked_numbers = db.Column(db.String, default='')  # Store as comma-separated numbers
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (
