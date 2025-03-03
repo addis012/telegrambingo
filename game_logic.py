@@ -86,6 +86,7 @@ class BingoGame:
             return False
 
         player = self.players[user_id]
+        # Only allow marking numbers that are both on the player's board and have been called
         if number in player['board'] and number in self.called_numbers:
             if number not in player['marked']:
                 player['marked'].append(number)
@@ -101,6 +102,11 @@ class BingoGame:
         player = self.players[user_id]
         marked = set(player['marked'])
         board = player['board']
+
+        # Validate that all marked numbers are actually on the board and have been called
+        for num in marked:
+            if num not in board or num not in self.called_numbers:
+                return False, "Invalid marked numbers detected"
 
         # Check rows
         for i in range(0, 25, 5):
@@ -126,7 +132,7 @@ class BingoGame:
             return False
         self.status = "active"
         # Call first number automatically when game starts
-        self.call_number() # Added this line back to call a number at the start.
+        self.call_number() 
         return True
 
     def end_game(self, winner_id: int):

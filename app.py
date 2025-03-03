@@ -180,15 +180,38 @@ def mark_number(game_id):
 
     game = active_games[game_id]
     user_id = session['user_id']
-    number = request.json.get('number')
 
+    if user_id not in game.players:
+        return jsonify({'error': 'Player not in game'}), 400
+
+    # Handle bingo check request
+    check_win = request.json.get('check_win', False)
+    if check_win:
+        winner, message = game.check_winner(user_id)
+        if winner:
+            game.end_game(user_id)
+        return jsonify({
+            'winner': winner,
+            'message': message
+        })
+
+    # Handle number marking
+    number = request.json.get('number')
     if not number:
         return jsonify({'error': 'Number required'}), 400
 
+    # Validate the number is on player's board and has been called
+    player = game.players[user_id]
+    if number not in player['board']:
+        return jsonify({'error': 'Number not on your board'}), 400
+    if number not in game.called_numbers:
+        return jsonify({'error': 'Number has not been called yet'}), 400
+
     success = game.mark_number(user_id, number)
     if not success:
-        return jsonify({'error': 'Invalid number'}), 400
+        return jsonify({'error': 'Could not mark number'}), 400
 
+    # Check for win after marking
     winner, message = game.check_winner(user_id)
     if winner:
         game.end_game(user_id)
