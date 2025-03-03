@@ -104,12 +104,9 @@
 <body>
     <div class="container mt-4">
         <div class="game-header">
-            <div class="stat-item">Game F5055</div>
-            <div class="stat-item">Derash 104</div>
-            <div class="stat-item">Bonus On</div>
-            <div class="stat-item">Players 13</div>
-            <div class="stat-item">Bet 10</div>
-            <div class="stat-item">call 1</div>
+            <div class="stat-item">Game {{ game_id }}</div>
+            <div class="stat-item">Players {{ game.players|length }}</div>
+            <div class="stat-item">Current Call</div>
         </div>
 
         <div class="bingo-board">
@@ -121,40 +118,61 @@
         <div class="current-call">
             <div>Count Down</div>
             <div>Current Call</div>
-            <div class="call-number">{{ current_number }}</div>
+            <div class="call-number">{{ current_number or 'Waiting...' }}</div>
         </div>
 
         <div class="player-board">
             {% for number in board %}
-                <div class="number-cell {% if number in marked %}active{% endif %}" onclick="markNumber({{ number }})">
+                <div class="number-cell {% if number in marked %}active{% endif %}" 
+                     onclick="markNumber({{ number }})">
                     {{ number }}
                 </div>
             {% endfor %}
         </div>
 
-        <button class="bingo-button">BINGO!</button>
+        <button class="bingo-button" onclick="checkWin()">BINGO!</button>
 
         <div class="action-buttons">
             <button class="action-btn refresh-btn" onclick="callNumber()">Refresh</button>
-            <button class="action-btn leave-btn">Leave</button>
+            <button class="action-btn leave-btn" onclick="leaveGame()">Leave</button>
         </div>
     </div>
 
     <script>
         function callNumber() {
-            fetch('/call')
-                .then(response => response.json())
-                .then(data => {
-                    location.reload();
-                });
+            fetch(`/game/{{ game_id }}/call`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                location.reload();
+            });
         }
 
         function markNumber(number) {
-            fetch(`/mark/${number}`)
-                .then(response => response.json())
-                .then(data => {
-                    location.reload();
-                });
+            fetch(`/game/{{ game_id }}/mark`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ number: number })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.winner) {
+                    alert(data.message);
+                }
+                location.reload();
+            });
+        }
+
+        function checkWin() {
+            // The winning check is done on mark_number
+            alert("Keep marking numbers until you complete a winning pattern!");
+        }
+
+        function leaveGame() {
+            window.location.href = '/';
         }
     </script>
 </body>
