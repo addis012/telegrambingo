@@ -17,28 +17,44 @@ class BingoGame:
         self.max_players = 100  # Maximum players allowed
         self.last_call_time = None
 
-    def generate_board(self) -> List[int]:
-        """Generate a 5x5 BINGO board with proper number ranges."""
+    def generate_board(self, cartela_number: int) -> List[int]:
+        """Generate a 5x5 BINGO board with consistent numbers based on cartela number."""
+        # Use cartela number as seed for random number generation
+        random.seed(cartela_number)
+
+        # Generate numbers for each column with proper ranges
         b_numbers = random.sample(range(1, 16), 5)
         i_numbers = random.sample(range(16, 31), 5)
         n_numbers = random.sample(range(31, 46), 5)
         g_numbers = random.sample(range(46, 61), 5)
         o_numbers = random.sample(range(61, 76), 5)
 
+        # Reset random seed
+        random.seed()
+
         board = []
         for i in range(5):
             board.extend([b_numbers[i], i_numbers[i], n_numbers[i], g_numbers[i], o_numbers[i]])
+
+        # Make center square (index 12) a free space by marking it automatically
         return board
 
-    def add_player(self, user_id: int) -> List[int]:
+    def add_player(self, user_id: int, cartela_number: int = None) -> List[int]:
         """Add a player and generate their board."""
         if user_id in self.players or len(self.players) >= self.max_players:
             return []
 
-        board = self.generate_board()
+        if cartela_number is None:
+            # Generate a random unused cartela number
+            used_cartelas = set(p.get('cartela_number', 0) for p in self.players.values())
+            available = [n for n in range(1, 101) if n not in used_cartelas]
+            cartela_number = random.choice(available) if available else 0
+
+        board = self.generate_board(cartela_number)
         self.players[user_id] = {
             'board': board,
-            'marked': []
+            'marked': [board[12]],  # Center square is automatically marked
+            'cartela_number': cartela_number
         }
         self.pool += self.entry_price
 
@@ -105,8 +121,10 @@ class BingoGame:
 
         # Validate that all marked numbers are actually on the board and have been called
         for num in marked:
-            if num not in board or num not in self.called_numbers:
+            if num not in board and num != board[12]:  # Allow center free space
                 return False, "Invalid marked numbers detected"
+            if num not in self.called_numbers and num != board[12]:  # Allow center free space
+                return False, "Number has not been called yet"
 
         # Check rows
         for i in range(0, 25, 5):

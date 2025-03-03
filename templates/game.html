@@ -157,6 +157,7 @@
                 </div>
 
                 <div class="player-board-container">
+                    <div class="stat-item mb-2">Board number {{ game.players[session.user_id].cartela_number }}</div>
                     <div class="bingo-header">
                         <div>B</div>
                         <div>I</div>
@@ -166,10 +167,14 @@
                     </div>
                     <div class="player-board">
                         {% for number in board %}
-                            <div class="number-cell {% if number in marked %}active{% endif %}" 
+                            <div class="number-cell {% if number in marked or loop.index0 == 12 %}active{% endif %}" 
                                 data-number="{{ number }}"
                                 onclick="markNumber({{ number }})">
-                                {{ number }}
+                                {% if loop.index0 == 12 %}
+                                    FREE
+                                {% else %}
+                                    {{ number }}
+                                {% endif %}
                             </div>
                         {% endfor %}
                     </div>
