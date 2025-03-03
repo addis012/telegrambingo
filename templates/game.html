@@ -79,6 +79,7 @@
             border-radius: 25px;
             font-size: 1.2em;
             margin: 10px 0;
+            cursor: pointer;
         }
         .action-buttons {
             display: flex;
@@ -91,6 +92,7 @@
             border: none;
             border-radius: 20px;
             font-weight: bold;
+            cursor: pointer;
         }
         .refresh-btn {
             background: #42a5f5;
@@ -105,9 +107,12 @@
 <body>
     <div class="container mt-4">
         <div class="game-header">
-            <div class="stat-item">Game #{{ game_id }}</div>
-            <div class="stat-item">Players: {{ active_players|default(0) }}</div>
-            <div class="stat-item">Status: {{ game_status|default('Waiting') }}</div>
+            <div class="stat-item">Game F{{ "%05d"|format(game_id) }}</div>
+            <div class="stat-item">Derash {{ active_players|default(0)|string|rjust(3, '0') }}</div>
+            <div class="stat-item">Bonus On</div>
+            <div class="stat-item">Players {{ active_players|default(0) }}</div>
+            <div class="stat-item">Bet {{ entry_price|default(10) }}</div>
+            <div class="stat-item">call {{ called_numbers|length|default(0) }}</div>
         </div>
 
         <div class="bingo-board">
@@ -119,7 +124,7 @@
         <div class="current-call">
             <div>Count Down</div>
             <div>Current Call</div>
-            <div class="call-number">{{ current_number|default('Waiting...') }}</div>
+            <div class="call-number">{{ current_number|default('Started' if game_status == 'active' else 'Waiting...') }}</div>
         </div>
 
         <div class="player-board">
@@ -134,20 +139,20 @@
         <button class="bingo-button" onclick="checkWin()">BINGO!</button>
 
         <div class="action-buttons">
-            <button class="action-btn refresh-btn" onclick="callNumber()">Refresh</button>
+            <button class="action-btn refresh-btn" onclick="refreshGame()">Refresh</button>
             <button class="action-btn leave-btn" onclick="leaveGame()">Leave</button>
         </div>
     </div>
 
     <script>
-        function callNumber() {
+        function refreshGame() {
             fetch(`/game/{{ game_id }}/call`, {
                 method: 'POST'
             })
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
-                    alert(data.error);
+                    console.error(data.error);
                 } else {
                     location.reload();
                 }
@@ -182,6 +187,19 @@
         function leaveGame() {
             window.location.href = '/';
         }
+
+        // Auto-start game if enough players have joined
+        {% if game_status == 'waiting' and active_players >= 2 %}
+        fetch(`/game/{{ game_id }}/start`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.error) {
+                location.reload();
+            }
+        });
+        {% endif %}
 
         // Auto-refresh every 5 seconds if game is active
         {% if game_status == 'active' %}

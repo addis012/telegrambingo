@@ -116,9 +116,18 @@ def play_game(game_id):
     user_id = session['user_id']
 
     if user_id not in game.players:
-        game.add_player(user_id)
+        board = game.add_player(user_id)
+        if not board:
+            return redirect(url_for('index'))
 
     player = game.players[user_id]
+
+    # Check if we should auto-start the game
+    if game.status == "waiting" and len(game.players) >= 2:
+        game.start_game()
+        if game.status == "active":
+            game.call_number()  # Call first number automatically
+
     return render_template('game.html',
                          game_id=game_id,
                          board=player['board'],
@@ -126,7 +135,8 @@ def play_game(game_id):
                          called_numbers=game.called_numbers,
                          current_number=game.call_number() if game.status == "active" else None,
                          active_players=len(game.players),
-                         game_status=game.status)
+                         game_status=game.status,
+                         entry_price=game.entry_price)
 
 @app.route('/game/<int:game_id>/call', methods=['POST'])
 def call_number(game_id):
@@ -135,8 +145,15 @@ def call_number(game_id):
         return jsonify({'error': 'Game not found'}), 404
 
     game = active_games[game_id]
-    number = game.call_number()
 
+    # Auto-start game if enough players
+    if game.status == "waiting" and len(game.players) >= 2:
+        game.start_game()
+
+    if game.status != "active":
+        return jsonify({'error': 'Game not active'}), 400
+
+    number = game.call_number()
     return jsonify({
         'number': number,
         'called_numbers': game.called_numbers
