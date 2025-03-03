@@ -1,17 +1,13 @@
 import os
 import random
 from flask import Flask, render_template, jsonify, session
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
 
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
+app = Flask(__name__)
+app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
 
 class BingoGame:
     def __init__(self):
-        self.current_number = "B-11"  
+        self.current_number = "B-11"
         self.called_numbers = []
         self.status = "waiting"
 
@@ -20,9 +16,9 @@ class BingoGame:
         if not available:
             return None
         number = random.choice(available)
-        self.current_number = number
+        self.current_number = self.format_number(number)
         self.called_numbers.append(number)
-        return self.format_number(number)
+        return self.current_number
 
     @staticmethod
     def format_number(number):
@@ -40,34 +36,10 @@ class BingoGame:
 
 game = BingoGame()
 
-# Create the app
-app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
-
-# Configure the SQLAlchemy part of the app
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_recycle": 300,
-    "pool_pre_ping": True,
-}
-
-# Initialize SQLAlchemy with the app
-db.init_app(app)
-
-def init_db():
-    with app.app_context():
-        # Import models here (this will need to be adjusted to point to the correct file)
-        from models import User, Game, GameParticipant, Deposit  #you will need to create models.py file
-        db.create_all()
-        print("Database tables created successfully!")
-
-# Initialize database
-init_db()
-
 @app.route('/')
 def index():
     if 'board' not in session:
-        # Generate a random board for the player (5x5 grid)
+        # Generate a random board following BINGO rules
         b_numbers = random.sample(range(1, 16), 5)
         i_numbers = random.sample(range(16, 31), 5)
         n_numbers = random.sample(range(31, 46), 5)
@@ -84,7 +56,8 @@ def index():
     return render_template('game.html', 
                          board=session['board'],
                          marked=session['marked'],
-                         current_number=game.current_number)
+                         current_number=game.current_number,
+                         called_numbers=game.called_numbers)
 
 @app.route('/call')
 def call_number():
