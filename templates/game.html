@@ -147,7 +147,13 @@
                 <div class="current-call">
                     <div>Count Down</div>
                     <div>Current Call</div>
-                    <div class="call-number">{{ current_number|default('Started' if game_status == 'active' else 'None') }}</div>
+                    <div class="call-number">
+                        {% if game_status == 'waiting' %}
+                            Waiting for players ({{ active_players }}/5)
+                        {% else %}
+                            {{ current_number|default('None') }}
+                        {% endif %}
+                    </div>
                 </div>
 
                 <div class="player-board-container">

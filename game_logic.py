@@ -13,6 +13,8 @@ class BingoGame:
         self.winner_id = None
         self.created_at = datetime.utcnow()
         self.finished_at = None
+        self.min_players = 5  # Minimum players to start game
+        self.max_players = 100  # Maximum players allowed
 
     def generate_board(self) -> List[int]:
         """Generate a 5x5 BINGO board with proper number ranges."""
@@ -29,7 +31,7 @@ class BingoGame:
 
     def add_player(self, user_id: int) -> List[int]:
         """Add a player and generate their board."""
-        if user_id in self.players or len(self.players) >= 100:
+        if user_id in self.players or len(self.players) >= self.max_players:
             return []
 
         board = self.generate_board()
@@ -38,6 +40,11 @@ class BingoGame:
             'marked': []
         }
         self.pool += self.entry_price
+
+        # Auto-start if we reach minimum players
+        if len(self.players) >= self.min_players:
+            self.start_game()
+
         return board
 
     def call_number(self) -> Optional[str]:
@@ -109,7 +116,7 @@ class BingoGame:
 
     def start_game(self) -> bool:
         """Start the game if enough players have joined."""
-        if len(self.players) < 2:
+        if len(self.players) < self.min_players:
             return False
         self.status = "active"
         # Call first number automatically when game starts
