@@ -112,6 +112,8 @@ class BingoGame:
         if len(self.players) < 2:
             return False
         self.status = "active"
+        # Call first number automatically when game starts
+        self.call_number()
         return True
 
     def end_game(self, winner_id: int):
