@@ -5,7 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import Column, Integer, String, Float, DateTime
 from datetime import datetime
-from game_logic import BingoGame  # Add import at top
+from game_logic import BingoGame
 
 class Base(DeclarativeBase):
     pass
@@ -80,6 +80,11 @@ def create_game():
         game_id = len(active_games) + 1
         active_games[game_id] = BingoGame(game_id, entry_price)
 
+        # Add first player automatically
+        user_id = session['user_id']
+        game = active_games[game_id]
+        game.add_player(user_id)
+
         return jsonify({
             'game_id': game_id,
             'entry_price': entry_price
@@ -115,6 +120,7 @@ def play_game(game_id):
     game = active_games[game_id]
     user_id = session['user_id']
 
+    # Add player if they haven't joined
     if user_id not in game.players:
         board = game.add_player(user_id)
         if not board:
@@ -122,18 +128,23 @@ def play_game(game_id):
 
     player = game.players[user_id]
 
-    # Check if we should auto-start the game
+    # Auto-start game if enough players have joined
     if game.status == "waiting" and len(game.players) >= 2:
         game.start_game()
         if game.status == "active":
             game.call_number()  # Call first number automatically
+
+    # Get current call number
+    current_number = None
+    if game.status == "active" and game.called_numbers:
+        current_number = game.format_number(game.called_numbers[-1])
 
     return render_template('game.html',
                          game_id=game_id,
                          board=player['board'],
                          marked=player['marked'],
                          called_numbers=game.called_numbers,
-                         current_number=game.call_number() if game.status == "active" else None,
+                         current_number=current_number,
                          active_players=len(game.players),
                          game_status=game.status,
                          entry_price=game.entry_price)

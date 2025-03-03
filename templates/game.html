@@ -108,7 +108,7 @@
     <div class="container mt-4">
         <div class="game-header">
             <div class="stat-item">Game F{{ "%05d"|format(game_id) }}</div>
-            <div class="stat-item">Derash {{ active_players|default(0)|string|rjust(3, '0') }}</div>
+            <div class="stat-item">Derash {{ "%03d"|format(active_players|default(0)) }}</div>
             <div class="stat-item">Bonus On</div>
             <div class="stat-item">Players {{ active_players|default(0) }}</div>
             <div class="stat-item">Bet {{ entry_price|default(10) }}</div>
