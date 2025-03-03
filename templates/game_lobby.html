@@ -17,6 +17,7 @@
                         <h5 class="card-title mb-0">Create New Game</h5>
                     </div>
                     <div class="card-body">
+                        <div id="errorAlert" class="alert alert-danger d-none"></div>
                         <form id="createGameForm">
                             <div class="mb-3">
                                 <label for="entryPrice" class="form-label">Entry Price (Birr)</label>
@@ -52,24 +53,43 @@
     </div>
 
     <script>
-        function createGame(event) {
+        function showError(message) {
+            const alert = document.getElementById('errorAlert');
+            alert.textContent = message;
+            alert.classList.remove('d-none');
+        }
+
+        function hideError() {
+            const alert = document.getElementById('errorAlert');
+            alert.classList.add('d-none');
+        }
+
+        document.getElementById('createGameForm').addEventListener('submit', function(event) {
             event.preventDefault();
-            const entryPrice = document.getElementById('entryPrice').value;
-            
+            hideError();
+
+            const entryPrice = parseInt(document.getElementById('entryPrice').value);
+
             fetch('/game/create', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ entry_price: parseInt(entryPrice) })
+                body: JSON.stringify({ entry_price: entryPrice })
             })
             .then(response => response.json())
             .then(data => {
-                if (data.game_id) {
+                if (data.error) {
+                    showError(data.error);
+                } else if (data.game_id) {
                     window.location.href = `/game/${data.game_id}`;
                 }
+            })
+            .catch(error => {
+                showError('Failed to create game. Please try again.');
+                console.error('Error:', error);
             });
-        }
+        });
 
         function joinGame(gameId) {
             window.location.href = `/game/${gameId}`;
@@ -81,7 +101,7 @@
                 .then(games => {
                     const gamesList = document.getElementById('gamesList');
                     gamesList.innerHTML = '';
-                    
+
                     games.forEach(game => {
                         const gameCard = document.createElement('div');
                         gameCard.className = 'card mb-2';
@@ -103,11 +123,15 @@
                         `;
                         gamesList.appendChild(gameCard);
                     });
+
+                    if (games.length === 0) {
+                        gamesList.innerHTML = '<p class="text-muted">No games available. Create a new game!</p>';
+                    }
                 });
         }
 
-        document.getElementById('createGameForm').addEventListener('submit', createGame);
-        refreshGames(); // Load games on page load
+        // Load games on page load
+        refreshGames();
     </script>
 </body>
 </html>

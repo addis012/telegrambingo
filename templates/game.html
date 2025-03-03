@@ -14,6 +14,7 @@
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
         .stat-item {
             background: rgba(255, 255, 255, 0.1);
@@ -104,9 +105,9 @@
 <body>
     <div class="container mt-4">
         <div class="game-header">
-            <div class="stat-item">Game {{ game_id }}</div>
-            <div class="stat-item">Players {{ game.players|length }}</div>
-            <div class="stat-item">Current Call</div>
+            <div class="stat-item">Game #{{ game_id }}</div>
+            <div class="stat-item">Players: {{ active_players|default(0) }}</div>
+            <div class="stat-item">Status: {{ game_status|default('Waiting') }}</div>
         </div>
 
         <div class="bingo-board">
@@ -118,7 +119,7 @@
         <div class="current-call">
             <div>Count Down</div>
             <div>Current Call</div>
-            <div class="call-number">{{ current_number or 'Waiting...' }}</div>
+            <div class="call-number">{{ current_number|default('Waiting...') }}</div>
         </div>
 
         <div class="player-board">
@@ -145,7 +146,11 @@
             })
             .then(response => response.json())
             .then(data => {
-                location.reload();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    location.reload();
+                }
             });
         }
 
@@ -159,21 +164,31 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.winner) {
+                if (data.error) {
+                    alert(data.error);
+                } else if (data.winner) {
                     alert(data.message);
+                    location.reload();
+                } else {
+                    location.reload();
                 }
-                location.reload();
             });
         }
 
         function checkWin() {
-            // The winning check is done on mark_number
             alert("Keep marking numbers until you complete a winning pattern!");
         }
 
         function leaveGame() {
             window.location.href = '/';
         }
+
+        // Auto-refresh every 5 seconds if game is active
+        {% if game_status == 'active' %}
+        setInterval(() => {
+            location.reload();
+        }, 5000);
+        {% endif %}
     </script>
 </body>
 </html>

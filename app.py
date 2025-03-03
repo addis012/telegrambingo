@@ -1,10 +1,11 @@
 import os
-from flask import Flask, jsonify, request, session, render_template
+import random
+from flask import Flask, jsonify, request, session, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import Column, Integer, String, Float, DateTime
-import random
 from datetime import datetime
+from game_logic import BingoGame  # Add import at top
 
 class Base(DeclarativeBase):
     pass
@@ -66,23 +67,26 @@ def index():
     """Show available games or create a new one."""
     if 'user_id' not in session:
         session['user_id'] = random.randint(1, 1000000)  # Temporary user ID generation
-
     return render_template('game_lobby.html')
 
 @app.route('/game/create', methods=['POST'])
 def create_game():
     """Create a new game."""
-    entry_price = request.json.get('entry_price', 10)
-    if entry_price not in [10, 20, 50, 100]:
-        return jsonify({'error': 'Invalid entry price'}), 400
+    try:
+        entry_price = int(request.json.get('entry_price', 10))
+        if entry_price not in [10, 20, 50, 100]:
+            return jsonify({'error': 'Invalid entry price'}), 400
 
-    game_id = len(active_games) + 1
-    active_games[game_id] = BingoGame(game_id, entry_price)
+        game_id = len(active_games) + 1
+        active_games[game_id] = BingoGame(game_id, entry_price)
 
-    return jsonify({
-        'game_id': game_id,
-        'entry_price': entry_price
-    })
+        return jsonify({
+            'game_id': game_id,
+            'entry_price': entry_price
+        })
+    except Exception as e:
+        print(f"Error creating game: {str(e)}")  # Debug log
+        return jsonify({'error': 'Failed to create game'}), 500
 
 @app.route('/game/<int:game_id>/join', methods=['POST'])
 def join_game(game_id):
@@ -106,7 +110,7 @@ def join_game(game_id):
 def play_game(game_id):
     """Show the game interface."""
     if game_id not in active_games:
-        return "Game not found", 404
+        return redirect(url_for('index'))
 
     game = active_games[game_id]
     user_id = session['user_id']
@@ -120,7 +124,9 @@ def play_game(game_id):
                          board=player['board'],
                          marked=player['marked'],
                          called_numbers=game.called_numbers,
-                         current_number=game.call_number() if game.status == "active" else "")
+                         current_number=game.call_number() if game.status == "active" else None,
+                         active_players=len(game.players),
+                         game_status=game.status)
 
 @app.route('/game/<int:game_id>/call', methods=['POST'])
 def call_number(game_id):
@@ -188,5 +194,4 @@ def list_games():
     return jsonify(games)
 
 if __name__ == '__main__':
-    from game_logic import BingoGame
     app.run(host='0.0.0.0', port=5000, debug=True)

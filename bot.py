@@ -15,6 +15,7 @@ from aiogram.types import (
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from game_logic import BingoGame
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,14 +33,12 @@ class UserState(StatesGroup):
 
 # In-memory storage (will be moved to database)
 users = {}
-deposits = {}
+games = {}
 available_accounts = [
     {"phone": "0911111111", "name": "Account 1"},
     {"phone": "0922222222", "name": "Account 2"},
     {"phone": "0933333333", "name": "Account 3"},
 ]
-
-current_game = None  # Global game variable
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
@@ -90,6 +89,37 @@ async def cmd_start(message: Message):
             reply_markup=ReplyKeyboardRemove()
         )
 
+@router.message(Command("play"))
+async def cmd_play(message: Message):
+    user_id = message.from_user.id
+
+    if user_id not in users:
+        await message.reply("Please register first!")
+        return
+
+    # Create a new game if none exists
+    game_id = len(games) + 1
+    if game_id not in games:
+        games[game_id] = BingoGame(game_id)
+
+    game = games[game_id]
+    board = game.add_player(user_id)
+
+    if not board:
+        await message.reply("Could not join game. It might be full or you're already in it.")
+        return
+
+    # Format the board for display
+    board_text = "Your Bingo Board:\n\n"
+    for i in range(0, 25, 5):
+        row = board[i:i+5]
+        board_text += " ".join(f"{num:2d}" for num in row) + "\n"
+
+    await message.reply(
+        f"You've joined Game #{game_id}\n\n{board_text}\n"
+        "Wait for the game to start!"
+    )
+
 @router.message(Command("deposit"))
 async def cmd_deposit(message: Message, state: FSMContext):
     user_id = message.from_user.id
@@ -109,53 +139,6 @@ async def cmd_deposit(message: Message, state: FSMContext):
         "⚠️ Important: Only forward SMS from the official bank number!\n"
         "Use /cancel to get a different account."
     )
-
-@router.message(UserState.waiting_for_deposit_sms)
-async def process_deposit_sms(message: Message, state: FSMContext):
-    if not message.forward_date:
-        await message.answer("Please forward the SMS, don't type it manually!")
-        return
-
-    # Here we'll add SMS verification logic
-    # For now, we'll simulate successful deposit
-    data = await state.get_data()
-    account = data.get('deposit_account')
-
-    if account:
-        # Simple SMS parsing (to be enhanced with actual Tasker data)
-        user_id = message.from_user.id
-        deposit_amount = 100  # This will be parsed from actual SMS
-
-        users[user_id]['balance'] += deposit_amount
-
-        # Record the deposit
-        if user_id not in deposits:
-            deposits[user_id] = []
-        deposits[user_id].append({
-            'amount': deposit_amount,
-            'account': account['phone'],
-            'timestamp': message.date
-        })
-
-        await state.clear()
-        await message.answer(
-            f"✅ Deposit successful!\n\n"
-            f"Amount: {deposit_amount} birr\n"
-            f"New balance: {users[user_id]['balance']} birr\n\n"
-            "Use /play to start playing!"
-        )
-
-        # Check if this is the user's first deposit and they were referred
-        if len(deposits[user_id]) == 1 and users[user_id]['referrer_id']:
-            referrer_id = users[user_id]['referrer_id']
-            if referrer_id in users:
-                # Add bonus to referrer
-                users[referrer_id]['balance'] += 20
-                await bot.send_message(
-                    referrer_id,
-                    f"🎉 You received 20 birr bonus!\n"
-                    f"Your referral {message.from_user.first_name} made their first deposit."
-                )
 
 @router.message(F.contact)
 async def process_phone_number(message: Message):
@@ -190,56 +173,6 @@ async def process_phone_number(message: Message):
             users[user_id]['referrer_id'],
             f"🎉 New user {message.from_user.first_name} registered using your referral link!"
         )
-
-# Game-related imports and handlers
-from game_logic import BingoGame, Player
-
-@router.message(Command("play"))
-async def cmd_play(message: Message):
-    global current_game
-    user_id = message.from_user.id
-
-    if user_id not in users:
-        await message.reply("Please register first!")
-        return
-
-    if not current_game:
-        current_game = BingoGame()
-
-    player = Player(user_id=user_id, username=users[user_id]['username'])
-    if current_game.add_player(player):
-        cartela_buttons = []
-        row = []
-        for i in range(1, 101):
-            if not current_game.is_cartela_taken(i):
-                row.append(InlineKeyboardButton(text=str(i), callback_data=f"cartela_{i}"))
-                if len(row) == 5:
-                    cartela_buttons.append(row)
-                    row = []
-        if row:
-            cartela_buttons.append(row)
-
-        await message.reply(
-            "Choose your cartela number (1-100):",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=cartela_buttons)
-        )
-    else:
-        await message.reply("You're already in the game!")
-
-@router.callback_query(lambda c: c.data and c.data.startswith('cartela_'))
-async def process_cartela_selection(callback_query: CallbackQuery):
-    cartela_number = int(callback_query.data.split('_')[1])
-    user_id = callback_query.from_user.id
-
-    if current_game and current_game.select_cartela(user_id, cartela_number):
-        await callback_query.answer(f"You selected cartela {cartela_number}")
-        await bot.send_message(
-            user_id,
-            f"Your cartela number is {cartela_number}\n"
-            "Wait for the game to start!"
-        )
-    else:
-        await callback_query.answer("This cartela is already taken!")
 
 async def main():
     # Initialize dispatcher with storage
