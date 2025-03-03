@@ -13,8 +13,10 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
+    referrals = db.relationship('User', backref=db.backref('referrer', remote_side=[id]))
     games_participated = db.relationship('GameParticipant', backref='user', lazy=True)
     won_games = db.relationship('Game', backref='winner', lazy=True)
+    deposits = db.relationship('Deposit', backref='user', lazy=True)
 
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -38,3 +40,17 @@ class GameParticipant(db.Model):
     __table_args__ = (
         db.UniqueConstraint('game_id', 'cartela_number', name='unique_cartela_per_game'),
     )
+
+class Deposit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    account_phone = db.Column(db.String(20), nullable=False)
+    sms_text = db.Column(db.Text)
+    status = db.Column(db.String(20), default='pending')  # pending, verified, rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    verified_at = db.Column(db.DateTime)
+
+    # Additional fields for Tasker automation
+    transaction_id = db.Column(db.String(100))
+    sender_phone = db.Column(db.String(20))

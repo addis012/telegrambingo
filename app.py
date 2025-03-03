@@ -1,9 +1,13 @@
 import os
 import random
 from flask import Flask, render_template, jsonify, session
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import DeclarativeBase
 
-app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
+class Base(DeclarativeBase):
+    pass
+
+db = SQLAlchemy(model_class=Base)
 
 class BingoGame:
     def __init__(self):
@@ -35,6 +39,30 @@ class BingoGame:
         return f"{prefix}-{number}"
 
 game = BingoGame()
+
+# Create the app
+app = Flask(__name__)
+app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
+
+# Configure the SQLAlchemy part of the app
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
+}
+
+# Initialize SQLAlchemy with the app
+db.init_app(app)
+
+def init_db():
+    with app.app_context():
+        # Import models here (this will need to be adjusted to point to the correct file)
+        from models import User, Game, GameParticipant, Deposit  #you will need to create models.py file
+        db.create_all()
+        print("Database tables created successfully!")
+
+# Initialize database
+init_db()
 
 @app.route('/')
 def index():
