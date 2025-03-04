@@ -13,7 +13,7 @@ def test_tasker_deposit():
     }
 
     # URL where the bot is running
-    bot_url = "http://0.0.0.0:5000/deposit/confirm"  # Replace with actual endpoint
+    bot_url = "http://0.0.0.0:5000/webhook/deposit"  # Replace with actual endpoint
 
     # Send the deposit confirmation
     try:

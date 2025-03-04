@@ -328,9 +328,9 @@ async def send_notification(user_id: int, message: str):
         raise
 
 async def process_deposit_confirmation(data: dict):
-    """Handle deposit confirmation from Tasker"""
+    """Handle deposit confirmation from webhook"""
     try:
-        # Extract data from Tasker
+        # Extract data from webhook
         received_amount = float(data.get('amount', 0))
         received_phone = data.get('phone')
 
