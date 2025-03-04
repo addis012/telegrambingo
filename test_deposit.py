@@ -12,8 +12,8 @@ def test_tasker_deposit():
         "phone": "0911234567"  # Use the phone number of a registered user
     }
 
-    # URL where the bot is running
-    bot_url = "http://0.0.0.0:5000/webhook/deposit"  # Replace with actual endpoint
+    # URL where the bot is running - use the local URL first
+    bot_url = "http://0.0.0.0:5000/webhook/test"
 
     # Send the deposit confirmation
     try:
