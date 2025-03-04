@@ -1,5 +1,5 @@
-from app import db
 from datetime import datetime
+from database import db
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -10,6 +10,7 @@ class User(db.Model):
     games_played = db.Column(db.Integer, default=0)
     games_won = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    referrer_id = db.Column(db.BigInteger, nullable=True)
 
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -37,16 +38,21 @@ class GameParticipant(db.Model):
         db.UniqueConstraint('game_id', 'cartela_number', name='unique_cartela_per_game'),
     )
 
-class Deposit(db.Model):
+class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    type = db.Column(db.String(20))  # deposit, withdraw, win, game_entry
     amount = db.Column(db.Float, nullable=False)
-    account_phone = db.Column(db.String(20), nullable=False)
-    sms_text = db.Column(db.Text)
-    status = db.Column(db.String(20), default='pending')  # pending, verified, rejected
+    status = db.Column(db.String(20), default='pending')  # pending, completed, failed
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    verified_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
 
-    # Additional fields for Tasker automation
+    # For deposits
+    deposit_phone = db.Column(db.String(20))
     transaction_id = db.Column(db.String(100))
-    sender_phone = db.Column(db.String(20))
+    sms_text = db.Column(db.Text)
+
+    # For withdrawals
+    withdrawal_phone = db.Column(db.String(20))
+    withdrawal_status = db.Column(db.String(20))  # pending, approved, rejected
+    admin_note = db.Column(db.Text)

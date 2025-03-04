@@ -1,52 +1,22 @@
 import os
 import random
 from flask import Flask, jsonify, request, session, render_template, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, Integer, String, Float, DateTime
 from datetime import datetime
+from database import db, init_db
 from game_logic import BingoGame
 
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
-
+# Create Flask app
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SESSION_SECRET", "dev-secret-key")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_recycle": 300,
-    "pool_pre_ping": True,
-}
+app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
 
-db.init_app(app)
+# Initialize database
+init_db(app)
+
+# Import models after db initialization
+from models import User, Game, GameParticipant, Transaction
 
 # Game storage (temporary, will be moved to database)
 active_games = {}
-
-# Models (retained from original)
-class Game(db.Model):
-    id = Column(Integer, primary_key=True)
-    status = Column(String(20), default='waiting')  # waiting, active, finished
-    entry_price = Column(Integer)
-    pool = Column(Integer, default=0)
-    called_numbers = Column(String, default='')
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class User(db.Model):
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100))
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class GameParticipant(db.Model):
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer)
-    game_id = Column(Integer)
-    cartela_number = Column(Integer)
-    marked_numbers = Column(String, default='')
-    created_at = Column(DateTime, default=datetime.utcnow)
 
 def format_number(number: int) -> str:
     """Format a number into BINGO format (e.g., B-12)."""
