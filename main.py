@@ -3,6 +3,12 @@ import asyncio
 from app import app
 from bot import main as bot_main
 from multiprocessing import Process
+import signal
+import sys
+
+def signal_handler(sig, frame):
+    print('Shutting down gracefully...')
+    sys.exit(0)
 
 def run_flask():
     # Use gunicorn configuration
@@ -32,6 +38,10 @@ def run_bot():
     asyncio.run(bot_main())
 
 if __name__ == "__main__":
+    # Register signal handler
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
     # Start Flask in a separate process
     flask_process = Process(target=run_flask)
     flask_process.start()
@@ -40,9 +50,12 @@ if __name__ == "__main__":
         # Run the bot in the main process
         run_bot()
     except KeyboardInterrupt:
-        flask_process.terminate()
-        flask_process.join()
+        print("Received keyboard interrupt, shutting down...")
     except Exception as e:
         print(f"Error: {e}")
-        flask_process.terminate()
-        flask_process.join()
+    finally:
+        # Cleanup
+        if flask_process.is_alive():
+            flask_process.terminate()
+            flask_process.join()
+        sys.exit(0)
