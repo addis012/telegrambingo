@@ -16,6 +16,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from game_logic import BingoGame
+from app import db, User, Game, GameParticipant, active_games
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -30,15 +31,10 @@ router = Router()
 class UserState(StatesGroup):
     waiting_for_phone = State()
     waiting_for_deposit_sms = State()
+    choosing_cartela = State()
 
-# In-memory storage (will be moved to database)
-users = {}
-games = {}
-available_accounts = [
-    {"phone": "0911111111", "name": "Account 1"},
-    {"phone": "0922222222", "name": "Account 2"},
-    {"phone": "0933333333", "name": "Account 3"},
-]
+# Game prices
+GAME_PRICES = [10, 20, 50, 100]
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
@@ -54,17 +50,18 @@ async def cmd_start(message: Message):
         except ValueError:
             logger.warning(f"Invalid referral code: {args}")
 
-    if user_id not in users:
-        # New user registration
-        users[user_id] = {
-            'telegram_id': user_id,
-            'username': message.from_user.username,
-            'phone': None,
-            'balance': 0,
-            'referrer_id': referrer_id,
-            'games_played': 0,
-            'games_won': 0
-        }
+    # Check if user exists in database
+    user = User.query.filter_by(telegram_id=user_id).first()
+    if not user:
+        user = User(
+            telegram_id=user_id,
+            username=message.from_user.username,
+            balance=0,
+            games_played=0,
+            games_won=0
+        )
+        db.session.add(user)
+        db.session.commit()
 
         keyboard = ReplyKeyboardMarkup(
             keyboard=[[KeyboardButton(text="📱 Share Phone Number", request_contact=True)]],
@@ -79,65 +76,32 @@ async def cmd_start(message: Message):
         )
     else:
         # Returning user
-        user = users[user_id]
         await message.answer(
             f"Welcome back to Addis Bingo! 🎮\n\n"
-            f"Balance: {user['balance']} birr\n"
-            f"Games played: {user['games_played']}\n"
-            f"Games won: {user['games_won']}\n\n"
-            "Use /deposit to add funds or /play to join a game!",
+            f"Balance: {user.balance} birr\n"
+            f"Games played: {user.games_played}\n"
+            f"Games won: {user.games_won}\n\n"
+            "Use /play to join a game!",
             reply_markup=ReplyKeyboardRemove()
         )
 
 @router.message(Command("play"))
-async def cmd_play(message: Message):
+async def cmd_play(message: Message, state: FSMContext):
     user_id = message.from_user.id
+    user = User.query.filter_by(telegram_id=user_id).first()
 
-    if user_id not in users:
-        await message.reply("Please register first!")
+    if not user:
+        await message.reply("Please register first using /start")
         return
 
-    # Create a new game if none exists
-    game_id = len(games) + 1
-    if game_id not in games:
-        games[game_id] = BingoGame(game_id)
+    # Show game price options
+    keyboard = [[KeyboardButton(text=f"{price} Birr")] for price in GAME_PRICES]
+    markup = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
-    game = games[game_id]
-    board = game.add_player(user_id)
-
-    if not board:
-        await message.reply("Could not join game. It might be full or you're already in it.")
-        return
-
-    # Format the board for display
-    board_text = "Your Bingo Board:\n\n"
-    for i in range(0, 25, 5):
-        row = board[i:i+5]
-        board_text += " ".join(f"{num:2d}" for num in row) + "\n"
-
-    await message.reply(
-        f"You've joined Game #{game_id}\n\n{board_text}\n"
-        "Wait for the game to start!"
-    )
-
-@router.message(Command("deposit"))
-async def cmd_deposit(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    if user_id not in users:
-        await message.answer("Please register first using /start")
-        return
-
-    # Assign a random deposit account
-    account = random.choice(available_accounts)
-    await state.set_state(UserState.waiting_for_deposit_sms)
-    await state.update_data(deposit_account=account)
-
+    await state.set_state(UserState.choosing_cartela)
     await message.answer(
-        "To deposit funds:\n\n"
-        f"1. Send money to: {account['phone']}\n"
-        f"2. Forward the confirmation SMS to this bot\n\n"
-        "⚠️ Important: Only forward SMS from the official bank number!\n"
-        "Use /cancel to get a different account."
+        "Choose your game entry price:",
+        reply_markup=markup
     )
 
 @router.message(F.contact)
@@ -146,16 +110,17 @@ async def process_phone_number(message: Message):
         await message.answer("Please share your own contact information.")
         return
 
-    user_id = message.from_user.id
-    if user_id not in users:
+    user = User.query.filter_by(telegram_id=message.from_user.id).first()
+    if not user:
         await message.answer("Please use /start first!")
         return
 
-    users[user_id]['phone'] = message.contact.phone_number
+    user.phone = message.contact.phone_number
+    db.session.commit()
 
     # Generate referral link
     bot_info = await bot.me()
-    referral_link = f"https://t.me/{bot_info.username}?start={user_id}"
+    referral_link = f"https://t.me/{bot_info.username}?start={message.from_user.id}"
 
     await message.answer(
         "✅ Registration complete!\n\n"
@@ -164,15 +129,84 @@ async def process_phone_number(message: Message):
         "1. Register and verify their phone number\n"
         "2. Make their first deposit\n"
         "3. Play their first game\n\n"
-        "Use /deposit to add funds or /play to start playing!",
+        "Use /play to start playing!",
         reply_markup=ReplyKeyboardRemove()
     )
 
-    if users[user_id]['referrer_id'] and users[user_id]['referrer_id'] in users:
-        await bot.send_message(
-            users[user_id]['referrer_id'],
-            f"🎉 New user {message.from_user.first_name} registered using your referral link!"
+@router.message(UserState.choosing_cartela, F.text.regexp(r"\d+ Birr"))
+async def process_game_price(message: Message, state: FSMContext):
+    try:
+        price = int(message.text.split()[0])
+        if price not in GAME_PRICES:
+            await message.reply("Invalid game price. Please choose from the available options.")
+            return
+
+        # Create or join a game
+        game_id = len(active_games) + 1
+        if game_id not in active_games:
+            active_games[game_id] = BingoGame(game_id, price)
+
+        game = active_games[game_id]
+
+        # Let user choose cartela number
+        keyboard = []
+        used_cartelas = {p.get('cartela_number', 0) for p in game.players.values()}
+        available = [n for n in range(1, 101) if n not in used_cartelas]
+
+        for i in range(0, len(available), 5):
+            row = []
+            for num in available[i:i+5]:
+                row.append(KeyboardButton(text=str(num)))
+            if row:
+                keyboard.append(row)
+
+        markup = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+        await message.answer(
+            "Choose your cartela number (1-100):",
+            reply_markup=markup
         )
+        await state.update_data(game_id=game_id, price=price)
+
+    except ValueError:
+        await message.reply("Invalid input. Please choose a valid game price.")
+
+@router.message(UserState.choosing_cartela, F.text.regexp(r"\d+"))
+async def process_cartela_choice(message: Message, state: FSMContext):
+    try:
+        cartela_number = int(message.text)
+        if not 1 <= cartela_number <= 100:
+            await message.reply("Please choose a number between 1 and 100.")
+            return
+
+        data = await state.get_data()
+        game_id = data.get('game_id')
+        game = active_games.get(game_id)
+
+        if not game:
+            await message.reply("Game not found. Please try again.")
+            return
+
+        # Add player with chosen cartela
+        board = game.add_player(message.from_user.id, cartela_number)
+        if not board:
+            await message.reply("Could not join game. The cartela number might be taken.")
+            return
+
+        # Format the board for display
+        board_text = "Your Bingo Board:\n\n"
+        for i in range(0, 25, 5):
+            row = board[i:i+5]
+            board_text += " ".join(f"{num:2d}" for num in row) + "\n"
+
+        await state.clear()
+        await message.reply(
+            f"You've joined Game #{game_id}\n\n{board_text}\n"
+            "Wait for the game to start!",
+            reply_markup=ReplyKeyboardRemove()
+        )
+
+    except ValueError:
+        await message.reply("Invalid input. Please choose a valid cartela number.")
 
 async def main():
     # Initialize dispatcher with storage
