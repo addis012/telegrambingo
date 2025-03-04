@@ -1,0 +1,27 @@
+Tasker Webhook Test URLs:
+
+1. Test Endpoint (for validating format):
+URL: https://bingoblaster.addisumelke01.repl.co/webhook/test
+Method: POST
+Headers: Content-Type: application/json
+Body Format:
+{
+  "amount": [amount from SMS],
+  "phone": [phone from SMS]
+}
+
+2. Production Endpoint (for real deposits):
+URL: https://bingoblaster.addisumelke01.repl.co/webhook/deposit
+Method: POST
+Headers: Content-Type: application/json
+Body Format:
+{
+  "amount": [amount from SMS],
+  "phone": [phone from SMS]
+}
+
+Example body:
+{
+  "amount": 100.0,
+  "phone": "0911234567"
+}
