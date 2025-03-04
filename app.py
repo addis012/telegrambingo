@@ -73,10 +73,14 @@ def test_webhook():
         data = request.get_json()
         logger.info(f"Test webhook received: {data}")
 
+        # Log headers for debugging
+        logger.debug(f"Request headers: {dict(request.headers)}")
+
         validation = {
             "format_check": [],
             "data_validation": [],
-            "received_data": data
+            "received_data": data,
+            "headers": dict(request.headers)
         }
 
         # Validate webhook format
@@ -84,17 +88,45 @@ def test_webhook():
             validation["format_check"].append("❌ No JSON data received")
             return jsonify(validation), 400
 
-        # Check required fields
+        # Check if it's a GitHub ping event
+        if request.headers.get('X-GitHub-Event') == 'ping':
+            return jsonify({
+                "message": "Webhook configured successfully!",
+                "zen": data.get('zen', 'No zen provided')
+            })
+
+        # Extract amount and phone from different payload formats
+        amount = None
+        phone = None
+
+        # Try Tasker format first
+        if 'amount' in data and 'phone' in data:
+            amount = data.get('amount')
+            phone = data.get('phone')
+        # Try GitHub issue format (for testing)
+        elif 'issue' in data:
+            # Extract amount and phone from issue title
+            # Expected format: "Deposit: 100 - 0911234567"
+            title = data['issue']['title']
+            if 'Deposit:' in title:
+                try:
+                    parts = title.split('Deposit:')[1].strip().split('-')
+                    amount = float(parts[0].strip())
+                    phone = parts[1].strip()
+                except (IndexError, ValueError):
+                    pass
+
+        # Validate required fields
         required_fields = ['amount', 'phone']
-        for field in required_fields:
-            if field not in data:
-                validation["format_check"].append(f"❌ Missing required field: {field}")
+        for field in [('amount', amount), ('phone', phone)]:
+            if not field[1]:
+                validation["format_check"].append(f"❌ Missing required field: {field[0]}")
             else:
-                validation["format_check"].append(f"✅ Found required field: {field}")
+                validation["format_check"].append(f"✅ Found required field: {field[0]}")
 
         # Validate amount
         try:
-            amount = float(data.get('amount', 0))
+            amount = float(amount) if amount else 0
             if amount <= 0:
                 validation["data_validation"].append("❌ Amount must be positive")
             else:
@@ -103,11 +135,12 @@ def test_webhook():
             validation["data_validation"].append("❌ Invalid amount format")
 
         # Validate phone
-        phone = str(data.get('phone', ''))
-        if not phone.isdigit() or len(phone) < 10:
-            validation["data_validation"].append("❌ Invalid phone number format")
-        else:
-            validation["data_validation"].append(f"✅ Valid phone format: {phone}")
+        if phone:
+            phone = str(phone)
+            if not phone.isdigit() or len(phone) < 10:
+                validation["data_validation"].append("❌ Invalid phone number format")
+            else:
+                validation["data_validation"].append(f"✅ Valid phone format: {phone}")
 
         # Overall validation status
         validation["status"] = "valid" if all(
@@ -115,6 +148,7 @@ def test_webhook():
             for checks in validation["format_check"] + validation["data_validation"]
         ) else "invalid"
 
+        logger.info(f"Webhook validation result: {validation}")
         return jsonify(validation)
 
     except Exception as e:
