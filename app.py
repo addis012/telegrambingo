@@ -125,5 +125,152 @@ def test_webhook():
             "help": "Make sure to send a POST request with Content-Type: application/json"
         }), 500
 
+@app.route('/game/create', methods=['GET', 'POST'])
+def create_game():
+    """Create a new game."""
+    try:
+        if request.method == 'POST':
+            entry_price = int(request.json.get('entry_price', 10))
+            user_id = request.json.get('user_id')
+
+            if entry_price not in [10, 20, 50, 100]:
+                return jsonify({'error': 'Invalid entry price'}), 400
+
+            game_id = len(active_games) + 1
+            active_games[game_id] = BingoGame(game_id, entry_price)
+
+            # Store user_id in session for web app
+            session['user_id'] = user_id
+
+            return jsonify({
+                'game_id': game_id,
+                'entry_price': entry_price
+            })
+        else:
+            return jsonify({'error': 'Invalid request method'}), 405
+    except Exception as e:
+        logger.exception(f"Error creating game: {str(e)}")
+        return jsonify({'error': 'Failed to create game'}), 500
+
+@app.route('/game/<int:game_id>/select_cartela')
+def select_cartela(game_id):
+    """Show cartela selection interface"""
+    if game_id not in active_games:
+        return redirect(url_for('index'))
+
+    game = active_games[game_id]
+
+    # Get list of used cartela numbers
+    used_cartelas = set()
+    for player in game.players.values():
+        used_cartelas.add(player.get('cartela_number', 0))
+
+    return render_template(
+        'cartela_selection.html',
+        game_id=game_id,
+        entry_price=game.entry_price,
+        used_cartelas=used_cartelas
+    )
+
+@app.route('/game/<int:game_id>')
+def play_game(game_id):
+    """Show the game interface."""
+    if game_id not in active_games:
+        return redirect(url_for('index'))
+
+    game = active_games[game_id]
+    user_id = session['user_id']
+
+    # Add player if they haven't joined
+    if user_id not in game.players:
+        board = game.add_player(user_id)
+        if not board:
+            return redirect(url_for('index'))
+
+    player = game.players[user_id]
+
+    # Auto-start game if enough players have joined
+    if game.status == "waiting" and len(game.players) >= game.min_players:
+        game.start_game()
+        if game.status == "active":
+            game.call_number()  # Call first number automatically
+
+    # Get current call number
+    current_number = None
+    if game.status == "active" and game.called_numbers:
+        current_number = game.format_number(game.called_numbers[-1])
+
+    return render_template('game.html',
+                         game_id=game_id,
+                         game=game,
+                         board=player['board'],
+                         marked=player['marked'],
+                         called_numbers=game.called_numbers,
+                         current_number=current_number,
+                         active_players=len(game.players),
+                         game_status=game.status,
+                         entry_price=game.entry_price)
+
+@app.route('/game/<int:game_id>/call', methods=['POST'])
+def call_number(game_id):
+    """Call the next number."""
+    if game_id not in active_games:
+        return jsonify({'error': 'Game not found'}), 404
+
+    game = active_games[game_id]
+    if game.status != "active":
+        return jsonify({'error': 'Game not active'}), 400
+
+    number = game.call_number()
+    if number:
+        return jsonify({
+            'number': number,
+            'called_numbers': game.called_numbers
+        })
+    return jsonify({'error': 'No more numbers to call'}), 400
+
+@app.route('/game/<int:game_id>/mark', methods=['POST'])
+def mark_number(game_id):
+    """Mark a number on the player's board."""
+    if game_id not in active_games:
+        return jsonify({'error': 'Game not found'}), 404
+
+    game = active_games[game_id]
+    user_id = session['user_id']
+
+    if user_id not in game.players:
+        return jsonify({'error': 'Player not in game'}), 400
+
+    # Handle bingo check request
+    check_win = request.json.get('check_win', False)
+    if check_win:
+        winner, message = game.check_winner(user_id)
+        if winner:
+            game.end_game(user_id)
+        return jsonify({
+            'winner': winner,
+            'message': message
+        })
+
+    # Handle number marking
+    number = request.json.get('number')
+    if not number:
+        return jsonify({'error': 'Number required'}), 400
+
+    success = game.mark_number(user_id, number)
+    if not success:
+        return jsonify({'error': 'Could not mark number'}), 400
+
+    # Check for win after marking
+    winner, message = game.check_winner(user_id)
+    if winner:
+        game.end_game(user_id)
+
+    return jsonify({
+        'marked': game.players[user_id]['marked'],
+        'winner': winner,
+        'message': message
+    })
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
