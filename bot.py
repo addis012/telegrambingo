@@ -11,7 +11,8 @@ from aiogram.types import (
     ReplyKeyboardRemove,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
-    WebAppInfo
+    WebAppInfo,
+    CallbackQuery
 )
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
@@ -19,6 +20,7 @@ from aiogram.fsm.state import State, StatesGroup
 from flask import Flask
 from database import db, init_db
 from models import User, Transaction
+import aiohttp
 
 # Configure logging
 logging.basicConfig(
@@ -41,6 +43,45 @@ init_db(app)
 
 # Game prices
 GAME_PRICES = [10, 20, 50, 100]
+
+@router.callback_query(lambda c: c.data.startswith('price_'))
+async def process_price_selection(callback_query: CallbackQuery):
+    """Handle price selection and create game"""
+    try:
+        # Extract price from callback data
+        price = int(callback_query.data.split('_')[1])
+
+        with app.app_context():
+            user = User.query.filter_by(telegram_id=callback_query.from_user.id).first()
+            if not user or user.balance < price:
+                await callback_query.answer("Insufficient balance. Please deposit first.", show_alert=True)
+                return
+
+            # Create game through API
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{WEBAPP_URL}/game/create", json={'entry_price': price, 'user_id': user.id}) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        game_id = data['game_id']
+
+                        # Create WebApp button for cartela selection
+                        keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+                            InlineKeyboardButton(
+                                text="Select Your Cartela",
+                                web_app=WebAppInfo(url=f"{WEBAPP_URL}/game/{game_id}/select_cartela")
+                            )
+                        ]])
+
+                        await callback_query.message.edit_text(
+                            f"Game created! Entry price: {price} Birr\n"
+                            f"Please select your cartela number:",
+                            reply_markup=keyboard
+                        )
+                    else:
+                        await callback_query.answer("Failed to create game. Please try again.", show_alert=True)
+    except Exception as e:
+        logger.error(f"Error processing price selection: {e}")
+        await callback_query.answer("Sorry, there was an error. Please try again.", show_alert=True)
 
 # States
 class UserState(StatesGroup):
@@ -185,11 +226,11 @@ async def process_play_command(message: Message):
                 await message.answer("Please register first using /start")
                 return
 
-            # Use existing /game/create endpoint instead of /game/new
+            # Create buttons for each price option
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(
                     text=f"{price} Birr",
-                    web_app=WebAppInfo(url=f"{WEBAPP_URL}/game/create?price={price}&user_id={user.id}")
+                    callback_data=f"price_{price}"
                 )] for price in GAME_PRICES
             ])
 

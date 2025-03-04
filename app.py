@@ -43,58 +43,76 @@ def index():
 def create_game():
     """Create a new game."""
     try:
-        if request.method == 'GET':
-            # Handle direct access from Telegram web app
-            price = request.args.get('price', type=int)
-            user_id = request.args.get('user_id', type=int)
-
-            if not price or price not in [10, 20, 50, 100]:
-                return jsonify({'error': 'Invalid entry price'}), 400
-
-            if user_id:
-                session['user_id'] = user_id
-            elif 'user_id' not in session:
-                session['user_id'] = random.randint(1, 1000000)  # Temporary for non-Telegram users
-
-            return render_template('game_lobby.html')
-
-        else:  # POST request
+        if request.method == 'POST':
             entry_price = int(request.json.get('entry_price', 10))
+            user_id = request.json.get('user_id')
+
             if entry_price not in [10, 20, 50, 100]:
                 return jsonify({'error': 'Invalid entry price'}), 400
 
             game_id = len(active_games) + 1
             active_games[game_id] = BingoGame(game_id, entry_price)
 
-            # Add first player automatically
-            user_id = session['user_id']
-            game = active_games[game_id]
-            game.add_player(user_id)
+            # Store user_id in session for web app
+            session['user_id'] = user_id
 
             return jsonify({
                 'game_id': game_id,
                 'entry_price': entry_price
             })
+        else:
+            return jsonify({'error': 'Invalid request method'}), 405
     except Exception as e:
         print(f"Error creating game: {str(e)}")  # Debug log
         return jsonify({'error': 'Failed to create game'}), 500
 
+@app.route('/game/<int:game_id>/select_cartela')
+def select_cartela(game_id):
+    """Show cartela selection interface"""
+    if game_id not in active_games:
+        return redirect(url_for('index'))
+
+    game = active_games[game_id]
+
+    # Get list of used cartela numbers
+    used_cartelas = set()
+    for player in game.players.values():
+        used_cartelas.add(player.get('cartela_number', 0))
+
+    return render_template(
+        'cartela_selection.html',
+        game_id=game_id,
+        entry_price=game.entry_price,
+        used_cartelas=used_cartelas
+    )
+
 @app.route('/game/<int:game_id>/join', methods=['POST'])
 def join_game(game_id):
-    """Join an existing game."""
+    """Join a game with selected cartela number"""
     if game_id not in active_games:
         return jsonify({'error': 'Game not found'}), 404
 
     game = active_games[game_id]
     user_id = session['user_id']
+    cartela_number = request.json.get('cartela_number')
 
-    board = game.add_player(user_id)
+    if not cartela_number or cartela_number < 1 or cartela_number > 100:
+        return jsonify({'error': 'Invalid cartela number'}), 400
+
+    # Check if cartela is already taken
+    for player in game.players.values():
+        if player.get('cartela_number') == cartela_number:
+            return jsonify({'error': 'This cartela is already taken'}), 400
+
+    # Add player with specific cartela
+    board = game.add_player(user_id, cartela_number)
     if not board:
         return jsonify({'error': 'Could not join game'}), 400
 
     return jsonify({
+        'game_id': game_id,
         'board': board,
-        'called_numbers': game.called_numbers
+        'cartela_number': cartela_number
     })
 
 @app.route('/game/<int:game_id>')
