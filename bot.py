@@ -185,10 +185,11 @@ async def process_play_command(message: Message):
                 await message.answer("Please register first using /start")
                 return
 
+            # Use existing /game/create endpoint instead of /game/new
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(
                     text=f"{price} Birr",
-                    web_app=WebAppInfo(url=f"{WEBAPP_URL}/game/new?price={price}")
+                    web_app=WebAppInfo(url=f"{WEBAPP_URL}/game/create?price={price}&user_id={user.id}")
                 )] for price in GAME_PRICES
             ])
 

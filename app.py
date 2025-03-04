@@ -39,26 +39,42 @@ def index():
         session['user_id'] = random.randint(1, 1000000)  # Temporary user ID generation
     return render_template('game_lobby.html')
 
-@app.route('/game/create', methods=['POST'])
+@app.route('/game/create', methods=['GET', 'POST'])
 def create_game():
     """Create a new game."""
     try:
-        entry_price = int(request.json.get('entry_price', 10))
-        if entry_price not in [10, 20, 50, 100]:
-            return jsonify({'error': 'Invalid entry price'}), 400
+        if request.method == 'GET':
+            # Handle direct access from Telegram web app
+            price = request.args.get('price', type=int)
+            user_id = request.args.get('user_id', type=int)
 
-        game_id = len(active_games) + 1
-        active_games[game_id] = BingoGame(game_id, entry_price)
+            if not price or price not in [10, 20, 50, 100]:
+                return jsonify({'error': 'Invalid entry price'}), 400
 
-        # Add first player automatically
-        user_id = session['user_id']
-        game = active_games[game_id]
-        game.add_player(user_id)
+            if user_id:
+                session['user_id'] = user_id
+            elif 'user_id' not in session:
+                session['user_id'] = random.randint(1, 1000000)  # Temporary for non-Telegram users
 
-        return jsonify({
-            'game_id': game_id,
-            'entry_price': entry_price
-        })
+            return render_template('game_lobby.html')
+
+        else:  # POST request
+            entry_price = int(request.json.get('entry_price', 10))
+            if entry_price not in [10, 20, 50, 100]:
+                return jsonify({'error': 'Invalid entry price'}), 400
+
+            game_id = len(active_games) + 1
+            active_games[game_id] = BingoGame(game_id, entry_price)
+
+            # Add first player automatically
+            user_id = session['user_id']
+            game = active_games[game_id]
+            game.add_player(user_id)
+
+            return jsonify({
+                'game_id': game_id,
+                'entry_price': entry_price
+            })
     except Exception as e:
         print(f"Error creating game: {str(e)}")  # Debug log
         return jsonify({'error': 'Failed to create game'}), 500
