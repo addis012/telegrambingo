@@ -21,32 +21,56 @@ A Telegram-based Bingo game bot that enables multiplayer Bingo gameplay through 
 - SQLAlchemy (ORM)
 - Bootstrap (Frontend)
 
+## Dependencies
+
+```
+aiogram>=3.18.0
+email-validator>=2.2.0
+flask-login>=0.6.3
+flask>=3.1.0
+flask-sqlalchemy>=3.1.1
+gunicorn>=23.0.0
+psycopg2-binary>=2.9.10
+python-dotenv>=1.0.1
+sqlalchemy>=2.0.38
+twilio>=9.4.6
+flask-wtf>=1.2.2
+aiohttp>=3.11.13
+requests>=2.32.3
+```
+
 ## Setup Instructions
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/bingo-game-bot.git
-cd bingo-game-bot
+git clone https://github.com/addis012/telegrambingo.git
+cd telegrambingo
 ```
 
-2. Install dependencies
+2. Create and activate a virtual environment
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables in `.env`:
+4. Set up environment variables in `.env`:
 ```
 TELEGRAM_BOT_TOKEN=your_bot_token
 DATABASE_URL=postgresql://user:password@host:port/dbname
 SESSION_SECRET=your_secret_key
 ```
 
-4. Initialize the database
+5. Initialize the database
 ```bash
 flask db upgrade
 ```
 
-5. Run the application
+6. Run the application
 ```bash
 python main.py
 ```
@@ -74,3 +98,7 @@ python main.py
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Webhook Configuration
+
+For webhook setup instructions (e.g., for Tasker integration), see `tasker_webhook_instructions.txt`.
