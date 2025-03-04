@@ -1,5 +1,6 @@
 import os
 import random
+import asyncio
 from flask import Flask, jsonify, request, session, render_template, redirect, url_for
 from datetime import datetime
 from database import db, init_db
@@ -250,6 +251,34 @@ def list_games():
                 'entry_price': game.entry_price
             })
     return jsonify(games)
+
+# Add deposit confirmation endpoint
+@app.route('/deposit/confirm', methods=['POST'])
+def confirm_deposit():
+    """Handle deposit confirmation from Tasker"""
+    try:
+        data = request.get_json()
+        if not data or 'amount' not in data or 'phone' not in data:
+            error_msg = 'Invalid data format - must include amount and phone'
+            print(error_msg)
+            return jsonify({'error': error_msg}), 400
+
+        print(f"Received deposit confirmation: {data}")
+
+        # Forward the confirmation to the bot
+        from bot import process_deposit_confirmation
+        asyncio.run(process_deposit_confirmation(data))
+
+        return jsonify({'status': 'success'})
+    except ValueError as e:
+        # Handle validation errors
+        error_msg = str(e)
+        print(f"Validation error: {error_msg}")
+        return jsonify({'error': error_msg}), 400
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Error processing deposit confirmation: {error_msg}")
+        return jsonify({'error': error_msg}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

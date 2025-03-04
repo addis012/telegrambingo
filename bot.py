@@ -299,10 +299,8 @@ async def process_deposit_amount(message: Message, state: FSMContext):
                 "1. Send money to one of these accounts:\n"
                 "   - CBE: 1000123456 (Abebe)\n"
                 "   - Telebirr: 0911111111\n"
-                "2. Forward the confirmation SMS to this bot\n\n"
-                "⚠️ Important: Only forward SMS from official bank numbers!\n"
-                "💡 Tip: If you're using Tasker, the deposit will be approved automatically "
-                "when the transaction details match your registered information."
+                "2. Wait for confirmation\n\n"
+                "⚠️ Your deposit will be processed automatically once received."
             )
     except ValueError:
         await message.answer("⚠️ Please enter a valid amount")
@@ -310,87 +308,56 @@ async def process_deposit_amount(message: Message, state: FSMContext):
         logger.error(f"Error processing deposit amount: {e}")
         await message.answer("Sorry, there was an error. Please try again later.")
 
-@router.message(UserState.waiting_for_deposit_sms)
-async def process_deposit_sms(message: Message, state: FSMContext):
-    """Handle deposit SMS verification"""
+async def process_deposit_confirmation(data: dict):
+    """Handle deposit confirmation from Tasker"""
     try:
+        # Extract data from Tasker
+        received_amount = float(data.get('amount', 0))
+        received_phone = data.get('phone')
+
+        logger.info(f"Processing deposit confirmation: amount={received_amount}, phone={received_phone}")
+
         with app.app_context():
-            user = User.query.filter_by(telegram_id=message.from_user.id).first()
-            state_data = await state.get_data()
-            expected_amount = state_data.get('deposit_amount')
+            # Find user by phone number
+            user = User.query.filter_by(phone=received_phone).first()
+            if not user:
+                error_msg = f"No user found with phone: {received_phone}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
-            # For manual SMS forwarding
-            if message.forward_date:
-                # Get pending transaction
-                transaction = Transaction.query.filter_by(
-                    user_id=user.id,
-                    type='deposit',
-                    status='pending',
-                    amount=expected_amount
-                ).order_by(Transaction.created_at.desc()).first()
+            # Get pending transaction
+            transaction = Transaction.query.filter_by(
+                user_id=user.id,
+                type='deposit',
+                status='pending',
+                amount=received_amount
+            ).order_by(Transaction.created_at.desc()).first()
 
-                if transaction:
-                    transaction.sms_text = message.text
-                    transaction.status = 'pending_verification'
-                    db.session.commit()
+            if transaction:
+                # Auto-approve the deposit
+                transaction.status = 'completed'
+                transaction.completed_at = datetime.utcnow()
 
-                    await message.answer(
-                        "✅ Deposit SMS received!\n\n"
-                        "Our team will verify and process your deposit within 30 minutes.\n"
-                        "You'll receive a notification once it's completed."
-                    )
-                else:
-                    await message.answer("❌ No pending deposit found. Please start a new deposit.")
+                # Update user balance
+                user.balance += received_amount
+                db.session.commit()
 
-            # For Tasker automated verification
+                # Send confirmation to user
+                bot = Bot(token=TOKEN)
+                await bot.send_message(
+                    user.telegram_id,
+                    f"✅ Your deposit of {received_amount} birr has been approved!\n"
+                    f"New balance: {user.balance} birr"
+                )
+                logger.info(f"Deposit approved for user {user.id}: {received_amount} birr")
             else:
-                try:
-                    # Parse Tasker data (assuming JSON format)
-                    data = json.loads(message.text)
-                    tasker_amount = float(data.get('amount', 0))
-                    tasker_phone = data.get('phone')
+                error_msg = f"No pending deposit found for user {user.id} with amount {received_amount}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
-                    # Verify amount and phone match
-                    if (tasker_amount == expected_amount and 
-                        tasker_phone == user.phone):
-
-                        # Get pending transaction
-                        transaction = Transaction.query.filter_by(
-                            user_id=user.id,
-                            type='deposit',
-                            status='pending',
-                            amount=expected_amount
-                        ).order_by(Transaction.created_at.desc()).first()
-
-                        if transaction:
-                            # Auto-approve the deposit
-                            transaction.status = 'completed'
-                            transaction.completed_at = datetime.utcnow()
-
-                            # Update user balance
-                            user.balance += tasker_amount
-
-                            db.session.commit()
-
-                            await message.answer(
-                                f"✅ Deposit of {tasker_amount} birr approved automatically!\n"
-                                f"New balance: {user.balance} birr"
-                            )
-                        else:
-                            await message.answer("❌ No pending deposit found. Please start a new deposit.")
-                    else:
-                        await message.answer(
-                            "❌ Deposit details don't match.\n"
-                            "Please ensure the amount and phone number are correct."
-                        )
-                except json.JSONDecodeError:
-                    await message.answer("⚠️ Invalid Tasker data format")
-
-            await state.clear()
-            await show_main_menu(message)
     except Exception as e:
-        logger.error(f"Error processing deposit verification: {e}")
-        await message.answer("Sorry, there was an error. Please try again later.")
+        logger.error(f"Error processing deposit confirmation: {e}")
+        raise
 
 @router.message(F.text == "💳 Withdraw")
 async def process_withdraw_command(message: Message, state: FSMContext):
