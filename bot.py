@@ -308,6 +308,25 @@ async def process_deposit_amount(message: Message, state: FSMContext):
         logger.error(f"Error processing deposit amount: {e}")
         await message.answer("Sorry, there was an error. Please try again later.")
 
+async def send_notification(user_id: int, message: str):
+    """Send a notification to a user through Telegram Bot API securely."""
+    try:
+        logger.info(f"Attempting to send notification to user {user_id}")
+        bot = Bot(token=TOKEN)  # Using environment variable
+
+        # Send message with HTML formatting
+        sent_message = await bot.send_message(
+            chat_id=user_id,
+            text=message,
+            parse_mode="HTML"  # Support HTML formatting
+        )
+
+        logger.info(f"Successfully sent notification to user {user_id}: {message}")
+        return sent_message
+    except Exception as e:
+        logger.error(f"Failed to send notification to user {user_id}: {e}")
+        raise
+
 async def process_deposit_confirmation(data: dict):
     """Handle deposit confirmation from Tasker"""
     try:
@@ -342,12 +361,12 @@ async def process_deposit_confirmation(data: dict):
                 user.balance += received_amount
                 db.session.commit()
 
-                # Send confirmation to user
-                bot = Bot(token=TOKEN)
-                await bot.send_message(
-                    user.telegram_id,
-                    f"✅ Your deposit of {received_amount} birr has been approved!\n"
-                    f"New balance: {user.balance} birr"
+                # Send notification using secure method
+                await send_notification(
+                    user_id=user.telegram_id,
+                    message=f"✅ <b>Deposit Approved!</b>\n\n"
+                           f"Amount: {received_amount:.2f} birr\n"
+                           f"New Balance: {user.balance:.2f} birr"
                 )
                 logger.info(f"Deposit approved for user {user.id}: {received_amount} birr")
             else:
