@@ -17,7 +17,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from flask import Flask
-from database import init_db, db
+from database import db, init_db
 from models import User, Transaction
 
 # Configure logging
@@ -27,10 +27,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app for database context
-app = Flask(__name__)
-init_db(app)
-
 # Bot Configuration
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not TOKEN:
@@ -38,6 +34,10 @@ if not TOKEN:
 
 WEBAPP_URL = f"https://{os.getenv('REPLIT_SLUG')}.replit.app" if os.getenv('REPLIT_SLUG') else "http://0.0.0.0:5000"
 router = Router()
+
+# Initialize Flask app for database context
+app = Flask(__name__)
+init_db(app)
 
 # Game prices
 GAME_PRICES = [10, 20, 50, 100]
@@ -141,7 +141,8 @@ async def process_phone_number(message: Message):
         db.session.commit()
 
         # Generate referral link
-        bot_info = await bot.me()
+        bot = Bot(token=TOKEN)
+        bot_info = await bot.get_me()
         referral_link = f"https://t.me/{bot_info.username}?start={message.from_user.id}"
 
         await message.answer(
